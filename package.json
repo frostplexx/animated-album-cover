@@ -8,8 +8,7 @@
 		"build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --external:node-appwrite --outfile=dist/main.js",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
-		"dev": "appwrite run function --function-id animated-album-cover",
-		"deploy": "appwrite push function --function-id animated-album-cover --activate --force"
+		"dev": "appwrite run function --function-id animated-album-cover"
 	},
 	"dependencies": {
 		"node-appwrite": "^31.0.0"

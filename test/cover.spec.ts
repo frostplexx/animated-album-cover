@@ -107,6 +107,64 @@ describe("fetchCover", () => {
 		expect(await fetchCover({ ...search, album: "American Idiot" }, "token")).toBeNull();
 	});
 
+	it("ignores albums that only share a stopword with the query", async () => {
+		stubApi({ albums: [album({ id: "wall" }, { name: "The Wall", artistName: "Pink Floyd" })] });
+
+		expect(
+			await fetchCover({ ...search, album: "The Dark Side of the Moon", artist: "Pink Floyd", year: "" }, "token"),
+		).toBeNull();
+	});
+
+	it("does not prefer an unrelated album just because it has animated artwork", async () => {
+		stubApi({
+			albums: [
+				album({ id: "self-titled" }, {
+					name: "Rage Against the Machine",
+					artistName: "Rage Against the Machine",
+					releaseDate: "1992-11-06",
+					editorialVideo: undefined,
+				}),
+				album({ id: "battle" }, {
+					name: "The Battle of Los Angeles",
+					artistName: "Rage Against the Machine",
+					releaseDate: "1999-11-02",
+				}),
+			],
+		});
+
+		expect(
+			await fetchCover(
+				{ ...search, album: "Rage Against the Machine", artist: "Rage Against the Machine", year: "" },
+				"token",
+			),
+		).toBeNull();
+	});
+
+	it("swaps in an edition of the album that has animated artwork", async () => {
+		stubApi({
+			albums: [
+				album({ id: "canonical" }, {
+					name: "The Dark Side of the Moon",
+					artistName: "Pink Floyd",
+					releaseDate: "1973-03-01",
+					editorialVideo: undefined,
+				}),
+				album({ id: "fiftieth" }, {
+					name: "The Dark Side of the Moon (50th Anniversary) [Remastered]",
+					artistName: "Pink Floyd",
+					releaseDate: "1973-03-01",
+				}),
+			],
+		});
+
+		const cover = await fetchCover(
+			{ ...search, album: "The Dark Side of the Moon", artist: "Pink Floyd", year: "" },
+			"token",
+		);
+
+		expect(cover?.album).toBe("The Dark Side of the Moon (50th Anniversary) [Remastered]");
+	});
+
 	it("returns null on an API error payload", async () => {
 		stubApi({ errors: [{ id: "x", title: "Resource Not Found", detail: "nope", status: "404", code: "40400" }] });
 

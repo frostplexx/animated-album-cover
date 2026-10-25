@@ -40,9 +40,17 @@ export async function fetchCover(
 	const candidates = await searchAlbums(albumName, data.artist, token, storefront);
 	const ranked = rankAlbums(candidates, albumName, data.artist, data.year);
 
-	// Prefer an edition that actually has a loop, even if it ranked lower (the
-	// canonical edition of some albums ships without animated artwork).
-	const match = ranked.find((candidate) => candidate.attributes?.editorialVideo) ?? ranked[0];
+	// Prefer an edition that actually has a loop. Only an edition may win, though:
+	// the canonical release of some albums ships without animated artwork, and an
+	// unrelated album must not win just because it happens to have a loop.
+	const best = ranked[0];
+	const edition = best && ranked.find(
+		(entry) =>
+			entry.nameScore >= 2 &&
+			entry.nameScore >= best.nameScore - 1 &&
+			entry.candidate.attributes?.editorialVideo,
+	);
+	const match = edition?.candidate ?? best?.candidate;
 	const attributes = match?.attributes;
 
 	if (!match || !attributes) {
@@ -166,36 +174,42 @@ function pickAlbumName(songs: SongResource[], data: CoverSearchData): string | u
 
 // The search API ranks the canonical album first, but not every edition carries
 // animated artwork (the original "Dark Side of the Moon" has none, the 50th
-// anniversary does), so the caller picks the best-ranked candidate with a loop.
+// anniversary does), so the caller may swap in an edition with a loop.
+interface RankedAlbum {
+	candidate: AlbumResource;
+	score: number;
+	nameScore: number;
+}
+
 function rankAlbums(
 	candidates: AlbumResource[],
 	albumName: string,
 	artist: string,
 	year: string,
-): AlbumResource[] {
-	const scored: { candidate: AlbumResource; score: number }[] = [];
+): RankedAlbum[] {
+	const scored: RankedAlbum[] = [];
 
 	for (const candidate of candidates) {
 		if (!candidate.attributes) continue;
 
-		const score = scoreAlbum(candidate.attributes, albumName, artist, year);
+		const nameScore = scoreName(candidate.attributes.name, albumName);
+		const score = scoreAlbum(candidate.attributes, nameScore, artist, year);
 		if (score > 0) {
-			scored.push({ candidate, score });
+			scored.push({ candidate, nameScore, score });
 		}
 	}
 
 	scored.sort((a, b) => b.score - a.score);
 
-	return scored.map((entry) => entry.candidate);
+	return scored;
 }
 
 function scoreAlbum(
 	attributes: AlbumAttributes,
-	albumName: string,
+	nameScore: number,
 	artist: string,
 	year: string,
 ): number {
-	const nameScore = scoreName(attributes.name, albumName);
 	if (!nameScore) return 0;
 
 	const wantArtist = normalize(artist);
@@ -217,7 +231,7 @@ function artistMatches(artist: string, wantArtist: string): boolean {
 }
 
 // 0 = unrelated, 4 = identical, 3 = deluxe/anniversary/live suffix,
-// 2 = substring, everything else = number of shared words.
+// 2 = substring, 1 = substantial word overlap.
 function scoreName(name: string, want: string): number {
 	const have = normalize(name);
 	const wanted = normalize(want);
@@ -227,8 +241,27 @@ function scoreName(name: string, want: string): number {
 	if (have.startsWith(`${wanted} `) || wanted.startsWith(`${have} `)) return 3;
 	if (have.includes(wanted) || wanted.includes(have)) return 2;
 
-	const wantedWords = new Set(wanted.split(" "));
-	return have.split(" ").filter((word) => wantedWords.has(word)).length;
+	const haveWords = significantWords(have);
+	const wantedWords = significantWords(wanted);
+
+	// A single shared word ("the", "of", "live") says nothing; require most of the
+	// shorter title to overlap before treating it as a weak match.
+	const shorter = Math.min(haveWords.size, wantedWords.size);
+	if (!shorter) return 0;
+
+	let shared = 0;
+	for (const word of wantedWords) {
+		if (haveWords.has(word)) shared++;
+	}
+
+	return shared >= Math.ceil(shorter / 2) ? 1 : 0;
+}
+
+// Words that appear in so many titles that matching on them alone is noise.
+const STOPWORDS = new Set(["a", "an", "and", "at", "for", "in", "of", "on", "the", "to", "with"]);
+
+function significantWords(value: string): Set<string> {
+	return new Set(value.split(" ").filter((word) => !STOPWORDS.has(word)));
 }
 
 function normalize(value: string): string {
