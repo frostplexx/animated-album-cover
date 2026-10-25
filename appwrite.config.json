@@ -6,7 +6,7 @@
         {
             "$id": "animated-album-cover",
             "name": "animated-album-cover",
-            "runtime": "node-22",
+            "runtime": "node-26",
             "buildSpecification": "s-2vcpu-2gb",
             "runtimeSpecification": "s-0.5vcpu-512mb",
             "execute": [
