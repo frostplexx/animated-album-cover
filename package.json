@@ -2,22 +2,27 @@
 	"name": "animated-album-cover",
 	"version": "0.1.0",
 	"private": true,
+	"type": "module",
+	"main": "dist/main.js",
 	"scripts": {
-		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
-		"start": "wrangler dev",
-		"test": "vitest",
-		"cf-typegen": "wrangler types"
+		"build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --external:node-appwrite --outfile=dist/main.js",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"dev": "appwrite run function --function-id animated-album-cover",
+		"deploy": "appwrite push function --function-id animated-album-cover --activate --force"
+	},
+	"dependencies": {
+		"node-appwrite": "^31.0.0"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-plugin": "^0.0.0",
+		"@types/node": "^22.0.0",
+		"appwrite-cli": "^28.9.0",
+		"esbuild": "^0.27.0",
 		"typescript": "^5.5.2",
-		"vitest": "~5.0.3",
-		"wrangler": "^4.152.0"
+		"vitest": "~5.0.3"
 	},
 	"allowScripts": {
 		"esbuild": true,
-		"fsevents": true,
-		"workerd": true
+		"fsevents": true
 	}
 }

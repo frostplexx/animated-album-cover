@@ -1,10 +1,9 @@
-import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-	plugins: [
-		cloudflareTest({
-			wrangler: { configPath: "./wrangler.jsonc" },
-		}),
-	],
+	test: {
+		environment: "node",
+		// .direnv holds the flake sources, which ship their own *.spec.ts files.
+		include: ["test/**/*.spec.ts"],
+	},
 });

@@ -1,32 +1,49 @@
-import { WorkerEntrypoint } from "cloudflare:workers";
+import type { CoverCache } from "./cache";
 
 const endpoint = "https://music.apple.com/us";
 const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' };
 
 // Fallback only: used when the JWT cannot be decoded or has no usable exp.
 const FALLBACK_MAX_AGE = 300;
+// Consider a token stale slightly early so it cannot expire mid-request.
+const EXPIRY_MARGIN = 60;
 
-// Cacheable entrypoint. Workers Cache runs in front of it, so the scrape below
-// happens once per cache entry and concurrent misses are collapsed into one run.
-export class TokenService extends WorkerEntrypoint {
-	async fetch(): Promise<Response> {
-		const token = await getBearerToken();
+const TOKEN_CACHE_KEY = "token";
 
-		if (!token) {
-			return new Response("Could not obtain an Apple Music bearer token", {
-				status: 502,
-				// Never let a failure be stored and replayed.
-				headers: { "Cache-Control": "no-store" },
-			});
-		}
+interface CachedToken {
+	token: string;
+	expiresAt: number;
+}
 
-		return new Response(token, {
-			headers: {
-				"Content-Type": "text/plain",
-				"Cache-Control": `public, max-age=${maxAge(token)}`,
-			},
-		});
+// Warm invocations skip the scrape entirely; the table entry covers cold starts
+// and other instances.
+let memo: CachedToken | undefined;
+
+export async function getToken(cache: CoverCache | undefined): Promise<string | null> {
+	const now = epoch();
+
+	if (memo && memo.expiresAt - EXPIRY_MARGIN > now) {
+		return memo.token;
 	}
+
+	const cached = await cache?.get<CachedToken>(TOKEN_CACHE_KEY);
+
+	if (cached?.token && cached.expiresAt - EXPIRY_MARGIN > now) {
+		memo = cached;
+		return cached.token;
+	}
+
+	const token = await getBearerToken();
+
+	if (!token) {
+		return null;
+	}
+
+	const ttl = maxAge(token);
+	memo = { token, expiresAt: now + ttl };
+	await cache?.set(TOKEN_CACHE_KEY, memo, ttl);
+
+	return token;
 }
 
 // Seconds until the JWT's exp claim, so the cache entry dies with the token.
@@ -70,4 +87,8 @@ async function getBearerToken(): Promise<string | null> {
 		console.error("Error fetching bearer token:", err);
 	}
 	return null;
+}
+
+function epoch(): number {
+	return Math.floor(Date.now() / 1000);
 }

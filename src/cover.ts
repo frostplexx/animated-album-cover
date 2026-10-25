@@ -1,4 +1,3 @@
-import { WorkerEntrypoint } from "cloudflare:workers";
 import {
 	AlbumAttributes,
 	AlbumCover,
@@ -9,60 +8,11 @@ import {
 } from "./types";
 
 export const DEFAULT_STOREFRONT = "us";
-// Album artwork changes rarely; a week keeps repeat lookups off Apple entirely.
-const CACHE_TTL = 60 * 60 * 24 * 7;
-
 // How many search hits to score. More candidates give the ranking in rankAlbums()
 // room to find an edition that actually has animated artwork.
 const MAX_CANDIDATES = 10;
 
 const AMP_API = "https://amp-api.music.apple.com/v1/catalog";
-
-// Cacheable entrypoint. Workers Cache runs in front of it, so repeat lookups of the
-// same album/artist/storefront are served without touching Apple, and concurrent
-// misses are collapsed into one run. The token is fetched here (not passed in) so
-// the cache key stays a plain URL.
-export class CoverService extends WorkerEntrypoint {
-	async fetch(request: Request): Promise<Response> {
-		// Workers Caching (cache.enabled) only runs in production, so this explicit
-		// layer is what gives `wrangler dev` the same hits. It sits before the token
-		// fetch, so a hit costs one cache lookup and nothing else.
-		const cache = caches.default;
-		const cached = await cache.match(request);
-
-		if (cached) {
-			return cached;
-		}
-
-		const params = new URL(request.url).searchParams;
-
-		const data: CoverSearchData = {
-			album: params.get("album") ?? "",
-			title: params.get("title") ?? "",
-			artist: params.get("artist") ?? "",
-			year: params.get("year") ?? "",
-		};
-		const storefront = params.get("storefront") || DEFAULT_STOREFRONT;
-
-		const tokenResponse = await this.ctx.exports.TokenService.fetch(new Request("https://token.internal/"));
-
-		if (!tokenResponse.ok) {
-			return json({ error: await tokenResponse.text() }, 502, { "Cache-Control": "no-store" });
-		}
-
-		const cover = await fetchCover(data, await tokenResponse.text(), storefront);
-
-		if (!cover) {
-			// Never let a miss be stored and replayed.
-			return new Response("Cover not found", { status: 404, headers: { "Cache-Control": "no-store" } });
-		}
-
-		const response = json(cover, 200, { "Cache-Control": `public, max-age=${CACHE_TTL}` });
-		await cache.put(request, response.clone());
-
-		return response;
-	}
-}
 
 export async function fetchCover(
 	data: CoverSearchData,
@@ -178,7 +128,7 @@ async function search(
 		return null;
 	}
 
-	const resData: AppleMusicSearchResponse = await result.json();
+	const resData = await result.json() as AppleMusicSearchResponse;
 
 	if ("errors" in resData) {
 		console.error("Apple Music API error:", resData.errors);
@@ -287,11 +237,4 @@ function normalize(value: string): string {
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, " ")
 		.trim();
-}
-
-function json(body: unknown, status: number, headers: Record<string, string> = {}): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { "Content-Type": "application/json", ...headers },
-	});
 }
