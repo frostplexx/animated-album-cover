@@ -49,6 +49,13 @@ export default async ({ req, res, log, error }: AppwriteContext) => {
 		year: param(req, "year").trim(),
 	};
 
+	// Crawlers probe the public function domain constantly (/.env, /.git/HEAD, /), and
+	// every one of those is a billed execution. Answer here, before the cache lookup
+	// and the token scrape, so junk costs a few milliseconds instead of seconds.
+	if (!data.album && !data.title) {
+		return res.json({ error: "album or title is required" }, 400, CORS_HEADERS);
+	}
+
 	// The ISRC is caller-supplied and never used for the lookup, so it stays out of
 	// the cache key and is attached to every response instead.
 	const isrc = param(req, "isrc");

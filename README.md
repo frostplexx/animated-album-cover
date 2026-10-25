@@ -37,6 +37,11 @@ GET https://<function-domain>/?title=Holiday&artist=Green+Day
 }
 ```
 
+`400` means neither `album` nor `title` was supplied — answered without a cache lookup,
+token scrape or Apple call, because crawlers probe the public domain constantly.
+
+`400` means neither `album` nor `title` was supplied — answered before any cache
+lookup, token scrape or Apple call, because crawlers probe the public domain.
 `404` means the album exists but has no animated artwork (or nothing matched).
 `artwork` and `animatedCover.previewFrame` are URL templates with `{w}x{h}`.
 
