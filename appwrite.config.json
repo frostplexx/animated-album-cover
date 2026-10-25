@@ -23,7 +23,7 @@
             "enabled": true,
             "logging": true,
             "entrypoint": "dist/main.js",
-            "commands": "npm install && npm run build",
+            "commands": "npm install --include=dev && npm run build",
             "ignore": [
                 "node_modules",
                 ".npm"
