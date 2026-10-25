@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { Client, TablesDB, AppwriteException } from "node-appwrite";
+import { Client, TablesDB, AppwriteException, Query } from "node-appwrite";
 
 const DATABASE_ID = process.env.COVER_CACHE_DATABASE_ID ?? "cover-cache";
 const TABLE_ID = process.env.COVER_CACHE_TABLE_ID ?? "covers";
@@ -7,6 +7,8 @@ const TABLE_ID = process.env.COVER_CACHE_TABLE_ID ?? "covers";
 export interface CoverCache {
 	get<T>(key: string): Promise<T | undefined>;
 	set(key: string, value: unknown, ttlSeconds: number): Promise<void>;
+	/** Deletes every row whose TTL has passed. Returns how many went. */
+	prune(): Promise<number>;
 }
 
 // Appwrite gives a function an ephemeral API key per execution (x-appwrite-key),
@@ -71,6 +73,23 @@ class TableCache implements CoverCache {
 			await this.tables.deleteRow({ databaseId: DATABASE_ID, tableId: TABLE_ID, rowId });
 		} catch {
 			// Expiry cleanup is best effort.
+		}
+	}
+
+	// Reads only evict the rows they touch, so unread entries would otherwise live
+	// forever. The function's schedule runs this (see appwrite.config.json).
+	async prune(): Promise<number> {
+		try {
+			const result = await this.tables.deleteRows({
+				databaseId: DATABASE_ID,
+				tableId: TABLE_ID,
+				queries: [Query.lessThanEqual("expiresAt", epoch())],
+			});
+
+			return result.total;
+		} catch (err) {
+			console.error("Cover cache prune failed:", err);
+			return 0;
 		}
 	}
 }

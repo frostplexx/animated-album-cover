@@ -4,7 +4,7 @@ import { getToken } from "./token";
 import type { AlbumCover, AlbumCoverResponse, CoverSearchData } from "./types";
 
 // Album artwork changes rarely; a week keeps repeat lookups out of Apple entirely.
-const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7;
+const DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 const CORS_HEADERS: Record<string, string> = {
 	"Access-Control-Allow-Origin": "*",
@@ -16,6 +16,16 @@ const CORS_HEADERS: Record<string, string> = {
 const NO_STORE: Record<string, string> = { ...CORS_HEADERS, "Cache-Control": "no-store" };
 
 export default async ({ req, res, log }: AppwriteContext) => {
+	// Scheduled executions only sweep expired rows (schedule lives in
+	// appwrite.config.json); they must not run lookups.
+	if (req.headers["x-appwrite-trigger"] === "schedule") {
+		const cache = createCache(req.headers["x-appwrite-key"]);
+		const pruned = cache ? await cache.prune() : 0;
+
+		log(`Pruned ${pruned} expired cache rows`);
+		return res.json({ pruned }, 200, NO_STORE);
+	}
+
 	// The TIDAL client runs on https://desktop.tidal.com, so every response needs CORS.
 	if (req.method === "OPTIONS") {
 		return res.send("", 204, CORS_HEADERS);
@@ -62,7 +72,7 @@ export default async ({ req, res, log }: AppwriteContext) => {
 		return res.send("Cover not found", 404, NO_STORE);
 	}
 
-	await cache?.set(cacheKey, cover, CACHE_TTL_SECONDS);
+	await cache?.set(cacheKey, cover, cacheTtlSeconds());
 
 	return coverResponse(res, cover, isrc);
 };
@@ -70,7 +80,13 @@ export default async ({ req, res, log }: AppwriteContext) => {
 function coverResponse(res: AppwriteResponse, cover: AlbumCover, isrc: string) {
 	const body: AlbumCoverResponse = { ...cover, isrc };
 
-	return res.json(body, 200, { ...CORS_HEADERS, "Cache-Control": `public, max-age=${CACHE_TTL_SECONDS}` });
+	return res.json(body, 200, { ...CORS_HEADERS, "Cache-Control": `public, max-age=${cacheTtlSeconds()}` });
+}
+
+export function cacheTtlSeconds(value = process.env.COVER_CACHE_TTL_SECONDS): number {
+	const parsed = Number(value);
+
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TTL_SECONDS;
 }
 
 // Repeated query params arrive as arrays; the lookup only ever uses one value.
@@ -78,10 +94,21 @@ function param(req: AppwriteRequest, name: string): string {
 	const value = req.query[name];
 
 	if (Array.isArray(value)) {
-		return value[0] ?? "";
+		return decodeQueryValue(value[0] ?? "");
 	}
 
-	return value ?? "";
+	return decodeQueryValue(value ?? "");
+}
+
+// Appwrite hands over the raw query string: the runtime splits on "&" and "=" and
+// does no percent-decoding, so "%20" arrives literally and "+" stays a plus.
+export function decodeQueryValue(value: string): string {
+	try {
+		return decodeURIComponent(value.replace(/\+/g, " "));
+	} catch {
+		// A stray "%" (e.g. an album called "100% Hits") must not break the request.
+		return value;
+	}
 }
 
 // Lowercased and trimmed so trivially different requests share one cache row.

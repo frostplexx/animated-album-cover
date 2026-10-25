@@ -71,9 +71,16 @@ Apple lookup (roughly 0.5–1 s warm).
 
 - One row per `storefront + album + title + artist + year`, row ID is the SHA-256 of
   that key (Appwrite row IDs cap at 36 chars).
-- Rows carry `payload` (JSON) and `expiresAt` (epoch seconds). Reads check `expiresAt`
-  and delete stale rows lazily — there is no scheduled cleanup.
-- TTL is 7 days for covers, the JWT's remaining lifetime for the token.
+- Rows carry `payload` (JSON) and `expiresAt` (epoch seconds).
+- **TTL:** 7 days for covers (`COVER_CACHE_TTL_SECONDS` overrides it), the JWT's
+  remaining lifetime for the token.
+- **Eviction:** two paths. Reads check `expiresAt` and delete the row they touched;
+  a scheduled execution sweeps the rest — `schedule: "0 3 * * *"` in
+  `appwrite.config.json` invokes the function with `x-appwrite-trigger: schedule`,
+  which runs `deleteRows` with `lessThanEqual("expiresAt", now)` and answers
+  `{ "pruned": n }`. Scheduled runs never call Apple.
+- The sweep needs the same `rows.read` / `rows.write` scopes as the lookups; without
+  them it logs `Cover cache prune failed` and reports `pruned: 0`.
 - The ISRC is not part of the key: it is attached to the response per request, so
   every track of an album shares one row.
 - 404s are not cached. A track without animated artwork costs one Apple lookup per

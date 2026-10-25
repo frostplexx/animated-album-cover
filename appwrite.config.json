@@ -17,7 +17,7 @@
                 "rows.read",
                 "rows.write"
             ],
-            "schedule": "",
+            "schedule": "0 3 * * *",
             "interval": 0,
             "timeout": 30,
             "enabled": true,
@@ -30,6 +30,40 @@
             ],
             "deploymentRetention": 0,
             "path": "."
+        }
+    ],
+    "databases": [
+        {
+            "$id": "cover-cache",
+            "name": "Cover cache",
+            "enabled": true
+        }
+    ],
+    "tables": [
+        {
+            "$id": "covers",
+            "$permissions": [],
+            "databaseId": "cover-cache",
+            "name": "Covers",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "payload",
+                    "type": "longtext",
+                    "required": true,
+                    "array": false
+                },
+                {
+                    "key": "expiresAt",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "min": 0,
+                    "max": 9999999999
+                }
+            ],
+            "indexes": []
         }
     ]
 }
