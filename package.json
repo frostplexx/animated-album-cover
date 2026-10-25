@@ -13,15 +13,11 @@
 		"@cloudflare/vitest-plugin": "^0.0.0",
 		"typescript": "^5.5.2",
 		"vitest": "~5.0.3",
-		"wrangler": "^4.35.0"
+		"wrangler": "^4.152.0"
 	},
-	"dependencies": {
-		"all": "^0.0.0",
-		"allow": "^2.1.0",
-		"approve": "^0.0.12",
-		"fsevents": "^2.3.3",
-		"scripts": "^0.1.0",
-		"sharp": "^0.35.5",
-		"workerd": "^1.20250906.0"
+	"allowScripts": {
+		"esbuild": true,
+		"fsevents": true,
+		"workerd": true
 	}
 }

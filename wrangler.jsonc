@@ -2,6 +2,14 @@
 	"name": "animated-album-cover",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-10-25",
+	"cache": {
+		"enabled": true,
+	},
+	"exports": {
+		"default": { "type": "worker", "cache": { "enabled": false } },
+		"TokenService": { "type": "worker", "cache": { "enabled": true } },
+		"CoverService": { "type": "worker", "cache": { "enabled": true } },
+	},
 	"observability": {
 		"enabled": true,
 	},
