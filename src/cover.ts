@@ -20,23 +20,41 @@ export async function fetchCover(
 	token: string,
 	storefront: string = DEFAULT_STOREFRONT,
 ): Promise<AlbumCover | null> {
-	let albumName = data.album.trim();
+	const albumName = data.album.trim();
+	const title = data.title.trim();
 
-	// Only the track is known: ask the songs index which album it belongs to.
-	if (!albumName) {
-		if (!data.title.trim()) {
-			logger.error("Cover lookup needs an album or a title");
-			return null;
-		}
-
-		albumName = (await resolveAlbumName(data, token, storefront)) ?? "";
-
-		if (!albumName) {
-			logger.error("No song match for:", data.title, data.artist);
-			return null;
-		}
+	if (!albumName && !title) {
+		logger.error("Cover lookup needs an album or a title");
+		return null;
 	}
 
+	if (albumName) {
+		const cover = await coverForAlbum(albumName, data, token, storefront);
+		if (cover) return cover;
+
+		// TIDAL may report the compilation a track appears on ("Best of 2000") instead
+		// of its original album. The title still resolves to the album with the loop.
+		if (!title) return null;
+
+		logger.log("Album lookup failed, retrying via title:", title, data.artist);
+	}
+
+	const resolved = await resolveAlbumName(data, token, storefront);
+
+	if (!resolved) {
+		logger.error("No song match for:", data.title, data.artist);
+		return null;
+	}
+
+	return coverForAlbum(resolved, data, token, storefront);
+}
+
+async function coverForAlbum(
+	albumName: string,
+	data: CoverSearchData,
+	token: string,
+	storefront: string,
+): Promise<AlbumCover | null> {
 	const candidates = await searchAlbums(albumName, data.artist, token, storefront);
 	const ranked = rankAlbums(candidates, albumName, data.artist, data.year);
 
@@ -147,7 +165,9 @@ async function search(
 	return resData;
 }
 
-// Best matching song's album name. Exact titles beat medleys and live cuts.
+// Best matching song's album name. Exact titles beat medleys and live cuts, and
+// between equally scored editions the shortest name wins (the canonical album, not
+// "American Idiot (Deluxe Edition)").
 function pickAlbumName(songs: SongResource[], data: CoverSearchData): string | undefined {
 	const wantArtist = normalize(data.artist);
 	let best: { album: string; score: number } | undefined;
@@ -164,7 +184,7 @@ function pickAlbumName(songs: SongResource[], data: CoverSearchData): string | u
 
 		const score = nameScore + (artist === wantArtist ? 4 : 1);
 
-		if (!best || score > best.score) {
+		if (!best || score > best.score || (score === best.score && attributes.albumName.length < best.album.length)) {
 			best = { album: attributes.albumName, score };
 		}
 	}

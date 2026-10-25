@@ -28,18 +28,25 @@ function song(name: string, albumName: string, artistName = "Green Day") {
 }
 
 // Routes on the `types` query param, which is the only thing distinguishing the
-// songs search from the albums search.
-function stubApi(routes: { albums?: unknown[]; songs?: unknown[]; errors?: unknown }) {
+// songs search from the albums search. `albums` may be keyed by term so a failing
+// first lookup and a succeeding retry can be simulated.
+function stubApi(routes: {
+	albums?: unknown[] | ((term: string) => unknown[]);
+	songs?: unknown[];
+	errors?: unknown;
+}) {
 	const fetchMock = vi.fn(async (input: string | URL | Request) => {
 		const url = new URL(input instanceof Request ? input.url : String(input));
+		const term = url.searchParams.get("term") ?? "";
 
 		if (routes.errors) {
 			return json({ errors: routes.errors });
 		}
 
+		const albums = typeof routes.albums === "function" ? routes.albums(term) : routes.albums ?? [];
 		const payload = url.searchParams.get("types") === "songs"
 			? { songs: { data: routes.songs ?? [] } }
-			: { albums: { data: routes.albums ?? [] } };
+			: { albums: { data: albums } };
 
 		return json({ results: payload });
 	});
@@ -99,6 +106,42 @@ describe("fetchCover", () => {
 		stubApi({ albums: [album({}, { editorialVideo: undefined })] });
 
 		expect(await fetchCover({ ...search, album: "American Idiot" }, "token")).toBeNull();
+	});
+
+	it("falls back to the track title when the album lookup finds nothing", async () => {
+		const fetchMock = stubApi({
+			albums: (term) => (term.includes("Best of 2000") ? [] : [album()]),
+			songs: [song("American Idiot", "American Idiot")],
+		});
+
+		const cover = await fetchCover({ ...search, album: "Best of 2000", title: "American Idiot" }, "token");
+
+		expect(cover?.album).toBe("American Idiot");
+
+		const searches = fetchMock.mock.calls.map(([input]) => new URL(String(input)).searchParams);
+		expect(searches.map((params) => params.get("types"))).toEqual(["albums", "songs", "albums"]);
+		expect(searches.map((params) => params.get("term"))).toEqual([
+			"Best of 2000 Green Day",
+			"American Idiot Green Day",
+			"American Idiot Green Day",
+		]);
+	});
+
+	it("prefers the shortest album name when equally scored songs tie", async () => {
+		const fetchMock = stubApi({
+			songs: [
+				song("American Idiot", "American Idiot (Deluxe Edition)"),
+				song("American Idiot", "American Idiot"),
+			],
+			albums: [album()],
+		});
+
+		const cover = await fetchCover({ ...search, title: "American Idiot" }, "token");
+
+		expect(cover?.album).toBe("American Idiot");
+
+		const searches = fetchMock.mock.calls.map(([input]) => new URL(String(input)).searchParams);
+		expect(searches[1].get("term")).toBe("American Idiot Green Day");
 	});
 
 	it("ignores albums by another artist", async () => {
