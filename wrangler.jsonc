@@ -1,0 +1,8 @@
+{
+	"name": "animated-album-cover",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-25",
+	"observability": {
+		"enabled": true,
+	},
+}
