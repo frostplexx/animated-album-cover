@@ -1,3 +1,4 @@
+import { logger } from "./log";
 import {
 	AlbumAttributes,
 	AlbumCover,
@@ -24,14 +25,14 @@ export async function fetchCover(
 	// Only the track is known: ask the songs index which album it belongs to.
 	if (!albumName) {
 		if (!data.title.trim()) {
-			console.error("Cover lookup needs an album or a title");
+			logger.error("Cover lookup needs an album or a title");
 			return null;
 		}
 
 		albumName = (await resolveAlbumName(data, token, storefront)) ?? "";
 
 		if (!albumName) {
-			console.error("No song match for:", data.title, data.artist);
+			logger.error("No song match for:", data.title, data.artist);
 			return null;
 		}
 	}
@@ -45,7 +46,7 @@ export async function fetchCover(
 	const attributes = match?.attributes;
 
 	if (!match || !attributes) {
-		console.error("No matching album for:", albumName, data.artist, data.year);
+		logger.error("No matching album for:", albumName, data.artist, data.year);
 		return null;
 	}
 	// The animated artwork loop comes as a square/tall pair; the motionDetail* videos
@@ -54,11 +55,11 @@ export async function fetchCover(
 	const tall = attributes.editorialVideo?.motionTallVideo3x4;
 
 	if (!square?.video && !tall?.video) {
-		console.error("No animated cover loop for album:", attributes.name, match.id);
+		logger.error("No animated cover loop for album:", attributes.name, match.id);
 		return null;
 	}
 
-	console.log("Matched album:", match.id, attributes.name, `(${attributes.artistName})`);
+	logger.log("Matched album:", match.id, attributes.name, `(${attributes.artistName})`);
 
 	return {
 		album: attributes.name,
@@ -124,14 +125,14 @@ async function search(
 	})
 
 	if (!result.ok) {
-		console.error("Apple Music API request failed:", result.status, result.statusText, apiUrl);
+		logger.error("Apple Music API request failed:", result.status, result.statusText, apiUrl);
 		return null;
 	}
 
 	const resData = await result.json() as AppleMusicSearchResponse;
 
 	if ("errors" in resData) {
-		console.error("Apple Music API error:", resData.errors);
+		logger.error("Apple Music API error:", resData.errors);
 		return null;
 	}
 

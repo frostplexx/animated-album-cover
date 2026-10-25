@@ -1,5 +1,6 @@
 import { createCache } from "./cache";
 import { DEFAULT_STOREFRONT, fetchCover } from "./cover";
+import { bindLogger, logger } from "./log";
 import { getToken } from "./token";
 import type { AlbumCover, AlbumCoverResponse, CoverSearchData } from "./types";
 
@@ -15,14 +16,18 @@ const CORS_HEADERS: Record<string, string> = {
 
 const NO_STORE: Record<string, string> = { ...CORS_HEADERS, "Cache-Control": "no-store" };
 
-export default async ({ req, res, log }: AppwriteContext) => {
+export default async ({ req, res, log, error }: AppwriteContext) => {
+	// context.log()/context.error() are the only lines the runtime shows as logs, so
+	// every module routes through them (see src/log.ts).
+	bindLogger(log, error);
+
 	// Scheduled executions only sweep expired rows (schedule lives in
 	// appwrite.config.json); they must not run lookups.
 	if (req.headers["x-appwrite-trigger"] === "schedule") {
 		const cache = createCache(req.headers["x-appwrite-key"]);
 		const pruned = cache ? await cache.prune() : 0;
 
-		log(`Pruned ${pruned} expired cache rows`);
+		logger.log(`Pruned ${pruned} expired cache rows`);
 		return res.json({ pruned }, 200, NO_STORE);
 	}
 
@@ -53,7 +58,7 @@ export default async ({ req, res, log }: AppwriteContext) => {
 	const cached = await cache?.get<AlbumCover>(cacheKey);
 
 	if (cached) {
-		log(`Cache hit: ${describe(data)}`);
+		logger.log(`Cache hit: ${describe(data)}`);
 		return coverResponse(res, cached, isrc);
 	}
 
@@ -63,7 +68,7 @@ export default async ({ req, res, log }: AppwriteContext) => {
 		return res.json({ error: "Could not obtain an Apple Music bearer token" }, 502, NO_STORE);
 	}
 
-	log(`Cache miss: ${describe(data)}`);
+	logger.log(`Cache miss: ${describe(data)}`);
 	const cover = await fetchCover(data, token, storefront);
 
 	if (!cover) {

@@ -75,10 +75,14 @@ Apple lookup (roughly 0.5–1 s warm).
 - **TTL:** 7 days for covers (`COVER_CACHE_TTL_SECONDS` overrides it), the JWT's
   remaining lifetime for the token.
 - **Eviction:** two paths. Reads check `expiresAt` and delete the row they touched;
-  a scheduled execution sweeps the rest — `schedule: "0 3 * * *"` in
-  `appwrite.config.json` invokes the function with `x-appwrite-trigger: schedule`,
-  which runs `deleteRows` with `lessThanEqual("expiresAt", now)` and answers
-  `{ "pruned": n }`. Scheduled runs never call Apple.
+  a scheduled execution sweeps the rest. The schedule is an **interval**, not cron —
+  `"interval": 1440` (minutes) in `appwrite.config.json`, because cron requires a paid
+  Cloud plan. It invokes the function with `x-appwrite-trigger: schedule`, which runs
+  `deleteRows` with `lessThanEqual("expiresAt", now)` and answers `{ "pruned": n }`.
+  Scheduled runs never call Apple.
+- Interval gotchas: the unit is minutes (Free/Education minimum is 60), the first run
+  can be up to a whole interval away, and you can't pick the time of day. Set
+  `"interval": 0` to run no sweeps at all — reads still evict what they touch.
 - The sweep needs the same `rows.read` / `rows.write` scopes as the lookups; without
   them it logs `Cover cache prune failed` and reports `pruned: 0`.
 - The ISRC is not part of the key: it is attached to the response per request, so

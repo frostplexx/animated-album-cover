@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Client, TablesDB, AppwriteException, Query } from "node-appwrite";
+import { logger } from "./log";
 
 const DATABASE_ID = process.env.COVER_CACHE_DATABASE_ID ?? "cover-cache";
 const TABLE_ID = process.env.COVER_CACHE_TABLE_ID ?? "covers";
@@ -45,7 +46,7 @@ class TableCache implements CoverCache {
 		} catch (err) {
 			// A missing row is a miss; anything else is logged and treated as one too.
 			if (!(err instanceof AppwriteException) || err.code !== 404) {
-				console.error("Cover cache read failed:", err);
+				logger.error("Cover cache read failed:", err);
 			}
 
 			return undefined;
@@ -64,7 +65,7 @@ class TableCache implements CoverCache {
 				},
 			});
 		} catch (err) {
-			console.error("Cover cache write failed:", err);
+			logger.error("Cover cache write failed:", err);
 		}
 	}
 
@@ -88,7 +89,7 @@ class TableCache implements CoverCache {
 
 			return result.total;
 		} catch (err) {
-			console.error("Cover cache prune failed:", err);
+			logger.error("Cover cache prune failed:", err);
 			return 0;
 		}
 	}

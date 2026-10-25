@@ -19,6 +19,7 @@ interface AppwriteResponse {
 interface AppwriteContext {
 	req: AppwriteRequest;
 	res: AppwriteResponse;
-	log(message: string): void;
-	error(message: string): void;
+	// The runtime's log()/error() are variadic and serialise Errors with their stack.
+	log(...messages: unknown[]): void;
+	error(...messages: unknown[]): void;
 }

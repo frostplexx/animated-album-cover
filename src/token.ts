@@ -1,3 +1,4 @@
+import { logger } from "./log";
 import type { CoverCache } from "./cache";
 
 const endpoint = "https://music.apple.com/us";
@@ -60,7 +61,7 @@ export function maxAge(token: string): number {
 			}
 		}
 	} catch (err) {
-		console.error("Error decoding bearer token exp:", err);
+		logger.error("Error decoding bearer token exp:", err);
 	}
 	return FALLBACK_MAX_AGE;
 }
@@ -84,7 +85,7 @@ async function getBearerToken(): Promise<string | null> {
 			}
 		}
 	} catch (err) {
-		console.error("Error fetching bearer token:", err);
+		logger.error("Error fetching bearer token:", err);
 	}
 	return null;
 }
