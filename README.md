@@ -21,6 +21,10 @@ GET https://<function-domain>/?title=Holiday&artist=Green+Day
 | `isrc` | optional, echoed back untouched |
 | `storefront` | optional Apple storefront, default `us` |
 
+Clients may send `X-Cover-Client: Radiant-Lyrics`; the value is not used by the
+function, it exists so an edge rule can tell plugin traffic from crawlers. It is
+allowed in `Access-Control-Allow-Headers`, so the browser's preflight succeeds.
+
 ## Response
 
 ```json

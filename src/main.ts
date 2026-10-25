@@ -10,7 +10,7 @@ const DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 7;
 const CORS_HEADERS: Record<string, string> = {
 	"Access-Control-Allow-Origin": "*",
 	"Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-	"Access-Control-Allow-Headers": "Content-Type",
+	"Access-Control-Allow-Headers": "Content-Type, X-Cover-Client",
 	"Access-Control-Max-Age": "86400",
 };
 

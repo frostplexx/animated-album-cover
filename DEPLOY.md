@@ -95,3 +95,36 @@ Apple lookup (roughly 0.5–1 s warm).
 - No edge cache and no request collapsing: two concurrent misses both call Apple.
 - Cache reads/writes are network round trips to TablesDB (tens of ms), not local.
 - Cold starts re-scrape the token unless the cache row is still valid.
+
+## Troubleshooting
+
+**`Cover cache write failed: Invalid document structure: Unknown attribute: "payload"`**
+
+The table exists but its columns don't match `src/cache.ts`. Check the real schema:
+
+```bash
+npx appwrite tablesdb list-columns --database-id cover-cache --table-id covers --json
+```
+
+Both columns must be present *and* `available` (column creation is async — `processing`
+means writes still fail). Re-pushing reconciles them, since `push table` compares the
+config's `columns` array against the remote table:
+
+```bash
+npx appwrite push table --force
+```
+
+If that leaves the table empty, create them directly and poll until available:
+
+```bash
+npx appwrite tablesdb create-longtext-column --database-id cover-cache --table-id covers --key payload --required
+npx appwrite tablesdb create-integer-column --database-id cover-cache --table-id covers --key expiresAt --required --min 0 --max 9999999999
+npx appwrite tablesdb list-columns --database-id cover-cache --table-id covers --json | jq '.[] | { key, status }'
+```
+
+**`Cover cache read failed: AppwriteException: ... 401`** — the function's ephemeral
+key lacks scopes. Console → Function → Settings → Scopes: grant `rows.read` and
+`rows.write`.
+
+**`Native logs detected`** — the active deployment predates the `logger` migration in
+`src/log.ts`; redeploy.
