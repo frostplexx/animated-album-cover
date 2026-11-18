@@ -11,7 +11,7 @@
 		"dev": "appwrite run function --function-id animated-album-cover"
 	},
 	"dependencies": {
-		"node-appwrite": "^31.0.0"
+		"node-appwrite": "^32.0.0"
 	},
 	"devDependencies": {
 		"@types/node": "^22.0.0",
